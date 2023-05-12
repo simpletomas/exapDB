@@ -154,7 +154,10 @@ def create_country():
 @app.route('/countries', methods=['GET'])
 def get_all_countries():
     countries = Country.query.all()
-    return jsonify({'countries': [country.name for country in countries]})
+    countries_list = []
+    for country in countries:
+        countries_list.append({'id': country.id, 'name': country.name})
+    return jsonify({'cities': countries_list})
 
 
 # Отримання однієї країни за її ID
