@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+import pandas as pd
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///accommodation.db'  # Підключення до бази даних
@@ -40,14 +41,24 @@ class RentalProperty(db.Model):
     City_ID = db.Column(db.Integer, nullable=False)
     Country_ID = db.Column(db.Integer, nullable=False)
     Price = db.Column(db.Float, nullable=False)
-    Available_From = db.Column(db.Date, nullable=False)
-    Available_To = db.Column(db.Date, nullable=False)
+    Available_From = db.Column(db.String(255), nullable=False)
+    Available_To = db.Column(db.String(255), nullable=False)
     Owner_ID = db.Column(db.Integer, nullable=False)
     Lat = db.Column(db.String(255), nullable=False)
     Lng = db.Column(db.String(255), nullable=False)
+    Kitchen = db.Column(db.Boolean, nullable=False)
+    Breakfast = db.Column(db.Boolean, nullable=False)
+    Breakfast_Lunch = db.Column(db.Boolean, nullable=False)
+    Breakfast_Dinner = db.Column(db.Boolean, nullable=False)
+    All_in = db.Column(db.Boolean, nullable=False)
+    Bath = db.Column(db.Boolean, nullable=False)
+    Balconies = db.Column(db.Boolean, nullable=False)
+    Wi_Fi = db.Column(db.Boolean, nullable=False)
+    Parking = db.Column(db.Boolean, nullable=False)
 
     def __init__(self, Name, Description, Address, City_ID, Country_ID, Price, Available_From, Available_To, Owner_ID,
-                 Lat, Lng):
+                 Lat, Lng, Kitchen, Breakfast, Breakfast_Lunch, Breakfast_Dinner, All_in, Bath, Balconies, Wi_Fi,
+                 Parking):
         self.Name = Name
         self.Description = Description
         self.Address = Address
@@ -59,6 +70,15 @@ class RentalProperty(db.Model):
         self.Owner_ID = Owner_ID
         self.Lat = Lat
         self.Lng = Lng
+        self.Kitchen = Kitchen
+        self.Breakfast = Breakfast
+        self.Breakfast_Lunch = Breakfast_Lunch
+        self.Breakfast_Dinner = Breakfast_Dinner
+        self.All_in = All_in
+        self.Bath = Bath
+        self.Balconies = Balconies
+        self.Wi_Fi = Wi_Fi
+        self.Parking = Parking
 
 
 # Модель Review
@@ -70,11 +90,11 @@ class Review(db.Model):
     Rating = db.Column(db.Integer)
     Comment = db.Column(db.String(500))
 
-    def __init__(self, User_ID, Rent_Prop_ID, Rating, Comment):
-        self.User_ID = User_ID
-        self.Rent_Prop_ID = Rent_Prop_ID
-        self.Rating = Rating
-        self.Comment = Comment
+    def __init__(self, user_id, rental_property_id, rating, comment):
+        self.User_ID = user_id
+        self.Rent_Prop_ID = rental_property_id
+        self.Rating = rating
+        self.Comment = comment
 
 
 # Модель таблиці bookings
@@ -157,7 +177,7 @@ def get_all_countries():
     countries_list = []
     for country in countries:
         countries_list.append({'id': country.id, 'name': country.name})
-    return jsonify({'cities': countries_list})
+    return jsonify({'countries': countries_list})
 
 
 # Отримання однієї країни за її ID
@@ -194,6 +214,7 @@ def delete_country(country_id):
     else:
         return 'Country not found', 404
 
+
 # Створення нового міста
 @app.route('/cities', methods=['POST'])
 def create_city():
@@ -203,6 +224,21 @@ def create_city():
     db.session.commit()
 
     return 'City created successfully', 201
+
+
+@app.route('/cities/populate', methods=['POST'])
+def populate_cities():
+    data = pd.read_csv('output.csv')  # Замініть 'cities.csv' на шлях до вашого CSV-файлу
+    cities = []
+
+    for index, row in data.iterrows():
+        city = City(name=row['city'], country_id=row['country'])
+        cities.append(city)
+
+    db.session.add_all(cities)
+    db.session.commit()
+
+    return 'Cities populated successfully', 201
 
 
 # Отримання всіх міст
@@ -249,6 +285,7 @@ def delete_city(city_id):
         return 'City deleted successfully'
     else:
         return 'City not found', 404
+
 
 @app.route('/owners', methods=['POST'])
 def create_owner():
@@ -329,6 +366,7 @@ def delete_owner(id):
 
     return jsonify({'message': 'Owner deleted successfully'})
 
+
 # Create a new Rental Property
 @app.route('/rental_properties', methods=['POST'])
 def create_rental_property():
@@ -344,7 +382,16 @@ def create_rental_property():
         Available_To=data['Available_To'],
         Owner_ID=data['Owner_ID'],
         Lat=data['Lat'],
-        Lng=data['Lng']
+        Lng=data['Lng'],
+        Kitchen=data['Kitchen'],
+        Breakfast=data['Breakfast'],
+        Breakfast_Lunch=data['Breakfast_Lunch'],
+        Breakfast_Dinner=data['Breakfast_Dinner'],
+        All_in=data['All_in'],
+        Bath=data['Bath'],
+        Balconies=data['Balconies'],
+        Wi_Fi=data['Wi_Fi'],
+        Parking=data['Parking']
     )
     db.session.add(new_rental_property)
     db.session.commit()
@@ -433,6 +480,7 @@ def delete_rental_property(id):
     else:
         return jsonify({'message': 'Rental Property not found'}), 404
 
+
 # Create a new User
 @app.route('/users', methods=['POST'])
 def create_user():
@@ -517,11 +565,22 @@ def delete_user(id):
     else:
         return jsonify({'message': 'User not found'}), 404
 
+
 # Отримати всі відгуки
 @app.route('/reviews', methods=['GET'])
 def get_reviews():
     reviews = Review.query.all()
-    return jsonify([review.__dict__ for review in reviews])
+    users_data = []
+    for review in reviews:
+        review_data = {
+            'ID': review.ID,
+            'User_ID': review.User_ID,
+            'Rent_Prop_ID': review.Rent_Prop_ID,
+            'Rating': review.Rating,
+            'Comment': review.Comment
+        }
+        users_data.append(review_data)
+    return jsonify({'users': users_data}), 200
 
 
 # Отримати відгук за ID
@@ -529,21 +588,28 @@ def get_reviews():
 def get_review(review_id):
     review = Review.query.get(review_id)
     if review:
-        return jsonify(review.__dict__)
+        review_data = {
+            'ID': review.ID,
+            'User_ID': review.User_ID,
+            'Rent_Prop_ID': review.Rent_Prop_ID,
+            'Rating': review.Rating,
+            'Comment': review.Comment
+        }
+        return jsonify({'user': review_data}), 200
     else:
-        return jsonify({'error': 'Review not found'}), 404
+        return jsonify({'message': 'Review not found'}), 404
 
 
 # Додати новий відгук
 @app.route('/reviews', methods=['POST'])
 def add_review():
     data = request.json
-    user_id = data.get('User_ID')
-    rent_prop_id = data.get('Rent_Prop_ID')
-    rating = data.get('Rating')
-    comment = data.get('Comment')
+    user_id = data.get('user_id')
+    rental_property_id = data.get('rental_property_id')
+    rating = data.get('rating')
+    comment = data.get('comment')
 
-    new_review = Review(User_ID=user_id, Rent_Prop_ID=rent_prop_id, Rating=rating, Comment=comment)
+    new_review = Review(user_id=user_id, rental_property_id=rental_property_id, rating=rating, comment=comment)
     db.session.add(new_review)
     db.session.commit()
 
@@ -576,6 +642,7 @@ def delete_review(review_id):
         return jsonify({'message': 'Review deleted successfully'})
     else:
         return jsonify({'error': 'Review not found'}), 404
+
 
 # Маршрут для створення бронювання
 @app.route('/bookings', methods=['POST'])
@@ -662,6 +729,7 @@ def delete_booking(booking_id):
     else:
         return jsonify({'message': 'Booking not found'}), 404
 
+
 # Маршрут для створення нового платежу
 @app.route('/payments', methods=['POST'])
 def create_payment():
@@ -746,6 +814,7 @@ def delete_payment(payment_id):
     else:
         return jsonify({'message': 'Payment not found'}), 404
 
+
 # Маршрут для створення нового запису в таблиці "Images"
 @app.route('/images', methods=['POST'])
 def create_image():
@@ -802,7 +871,6 @@ def delete_image(image_id):
         return jsonify({'message': 'Image deleted successfully!'})
     else:
         return jsonify({'message': 'Image not found'}), 404
-
 
 
 if __name__ == '__main__':
