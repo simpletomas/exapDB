@@ -200,6 +200,10 @@ class Image(db.Model):
 def index():
     return "Hello, User!"
 
+@app.route('/')
+def index1():
+    return "Hello, User!"
+
 
 # Створення нової країни
 @app.route('/countries', methods=['POST'])
