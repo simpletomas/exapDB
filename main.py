@@ -1,17 +1,27 @@
 import datetime
 import secrets
-
-from flask import Flask, request, jsonify, abort
+import pyotp as pyotp
+from flask import Flask, request, jsonify, abort, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import pandas as pd
 import jwt
+from flask_mail import Mail, Message
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///accommodation.db'  # Підключення до бази даних
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)  # Ініціалізація міграцій
+
+# Flask-Mail configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'dhomevibe01@gmail.com'
+app.config['MAIL_PASSWORD'] = '115903Pink'
+
+mail = Mail(app)
 
 
 class Country(db.Model):
@@ -577,7 +587,8 @@ def delete_rental_property(id):
     else:
         return jsonify({'message': 'Rental Property not found'}), 404
 
-@app.route('/login', methods=['POST'])
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     email = request.form.get('email')
     password = request.form.get('password')
@@ -592,6 +603,8 @@ def login():
                 'exp': expiration_time.isoformat()  # Token expiration time as string
             }, app.secret_key, algorithm='HS256')
             return jsonify({'message': 'Login successful', 'token': token}), 201
+
+
         else:
             print('Invalid email or password. Please try again.', 'error')
             return jsonify({'message': 'Invalid email or password'}), 401
@@ -599,6 +612,48 @@ def login():
         print('No user found with that email. Please sign up.', 'error')
         return jsonify({'message': 'User not found'}), 404
 
+    # Generate and store OTP secret key
+    otp_secret = pyotp.random_base32()
+    session['otp_secret'] = otp_secret
+
+    # Send OTP secret key to user's email
+    send_otp_email(email, otp_secret)
+
+    # Redirect to OTP verification page
+    return redirect(url_for('verify_otp'))
+
+
+def send_otp_email(email, otp_secret):
+    msg = Message('Two-Factor Authentication - OTP Secret Key', recipients=[email])
+    msg.body = f'Your OTP secret key is: {otp_secret}.'
+    mail.send(msg)
+
+
+@app.route('/verify_otp', methods=['GET', 'POST'])
+def verify_otp(pyotp=None):
+    if 'otp_secret' not in session:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        otp_code = request.form.get('otp_code')
+        otp_secret = session['otp_secret']
+
+        # Verify OTP code
+        totp = pyotp.TOTP(otp_secret)
+        if totp.verify(otp_code):
+            # OTP code is valid
+            session.pop('otp_secret')  # Remove OTP secret key from session
+            return jsonify({'message': 'Login successful'}), 201
+        else:
+            # OTP code is invalid
+            return jsonify({'message': 'Invalid code OTPd'}), 401
+
+    return jsonify({'message': 'User not found'}), 404
+
+
+@app.route('/home')
+def home():
+    return 'Welcome to the home page!'
 
 
 # Create a new User
@@ -631,7 +686,6 @@ def create_user():
     db.session.commit()
 
     return jsonify({'message': 'User created successfully', 'ID': new_user.ID}), 201
-
 
 
 # Get all Users
