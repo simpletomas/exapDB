@@ -1,26 +1,38 @@
-from flask import Flask, request, jsonify
+import datetime
+import secrets
+
+from flask import Flask, request, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import pandas as pd
+import jwt
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(16)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///accommodation.db'  # Підключення до бази даних
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)  # Ініціалізація міграцій
 
 
 class Country(db.Model):
+    __tablename__ = 'Country'
+
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(90), unique=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    # Додаткові поля для моделі Country
 
 
 class City(db.Model):
+    __tablename__ = 'City'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     country_id = db.Column(db.Integer, db.ForeignKey('country.id'), nullable=False)
 
 
 class Owner(db.Model):
+    __tablename__ = 'Owner'
+
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
@@ -32,18 +44,20 @@ class Owner(db.Model):
         return f'<Owner {self.first_name} {self.last_name}>'
 
 
+# Модель RentalProperty
 class RentalProperty(db.Model):
     __tablename__ = 'Rental_Property'
+
     ID = db.Column(db.Integer, primary_key=True)
     Name = db.Column(db.String(255), nullable=False)
     Description = db.Column(db.String(255))
     Address = db.Column(db.String(255), nullable=False)
-    City_ID = db.Column(db.Integer, nullable=False)
-    Country_ID = db.Column(db.Integer, nullable=False)
+    City_ID = db.Column(db.Integer, db.ForeignKey('City.id'), nullable=False)
+    Country_ID = db.Column(db.Integer, db.ForeignKey('Country.id'), nullable=False)
     Price = db.Column(db.Float, nullable=False)
     Available_From = db.Column(db.String(255), nullable=False)
     Available_To = db.Column(db.String(255), nullable=False)
-    Owner_ID = db.Column(db.Integer, nullable=False)
+    Owner_ID = db.Column(db.Integer, db.ForeignKey('Owner.id'), nullable=False)
     Lat = db.Column(db.String(255), nullable=False)
     Lng = db.Column(db.String(255), nullable=False)
     Kitchen = db.Column(db.Boolean, nullable=False)
@@ -84,24 +98,36 @@ class RentalProperty(db.Model):
 # Модель Review
 class Review(db.Model):
     __tablename__ = 'Review'
+
     ID = db.Column(db.Integer, primary_key=True)
     User_ID = db.Column(db.Integer, nullable=False)
-    Rent_Prop_ID = db.Column(db.Integer, nullable=False)
+    Rent_Prop_ID = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'), nullable=True)
     Rating = db.Column(db.Integer)
-    Comment = db.Column(db.String(500))
+    Comment = db.Column(db.String(500), nullable=True)
 
-    def __init__(self, user_id, rental_property_id, rating, comment):
-        self.User_ID = user_id
-        self.Rent_Prop_ID = rental_property_id
-        self.Rating = rating
-        self.Comment = comment
+    rental_property = db.relationship("RentalProperty", backref="reviews")
+
+
+class Comment(db.Model):
+    __tablename__ = 'Comments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    comment = db.Column(db.String)
+    review_id = db.Column(db.Integer, db.ForeignKey('Review.ID'), nullable=True)
+    date = db.Column(db.Date)
+
+    def __init__(self, comment, review_id, date):
+        self.comment = comment
+        self.review_id = review_id
+        self.date = date
 
 
 # Модель таблиці bookings
 class Booking(db.Model):
+    __tablename__ = 'Booking'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=False)
-    rental_property_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('User.ID'), nullable=False)
+    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'), nullable=False)
     check_in_date = db.Column(db.String(10), nullable=False)
     check_out_date = db.Column(db.String(10), nullable=False)
     price = db.Column(db.Float, nullable=False)
@@ -115,13 +141,15 @@ class Booking(db.Model):
 
 
 class User(db.Model):
+    __tablename__ = 'User'
+
     ID = db.Column(db.Integer, primary_key=True)
     First_Name = db.Column(db.String(50), nullable=False)
     Last_Name = db.Column(db.String(50), nullable=False)
     Email = db.Column(db.String(100), unique=True, nullable=False)
     Password = db.Column(db.String(100), nullable=False)
     Country = db.Column(db.String(50), nullable=False)
-    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'))
+    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'), nullable=False)
 
     def __repr__(self):
         return f'<User {self.Email}>'
@@ -129,10 +157,12 @@ class User(db.Model):
 
 # Клас моделі для таблиці Payment
 class Payment(db.Model):
+    __tablename__ = 'Payment'
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=False)
-    rental_property_id = db.Column(db.Integer, nullable=False)
-    booking_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('User.ID'), nullable=False)
+    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'), nullable=False)
+    booking_id = db.Column(db.Integer, db.ForeignKey('Booking.id'), nullable=False)
     payment_date = db.Column(db.String(50), nullable=False)
     amount = db.Column(db.Float, nullable=False)
 
@@ -146,17 +176,19 @@ class Payment(db.Model):
 
 # Модель таблиці "Images"
 class Image(db.Model):
+    _tablename__ = 'Image'
+
     id = db.Column(db.Integer, primary_key=True)
-    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'))
+    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'), nullable=False)
     image_path = db.Column(db.String(255), nullable=False)
 
     def __repr__(self):
         return f"<Image id={self.id} rental_property_id={self.rental_property_id} image_path={self.image_path}>"
 
 
-@app.route('/')
+@app.route('/home')
 def index():
-    return "Hello, World!"
+    return "Hello, User!"
 
 
 # Створення нової країни
@@ -168,6 +200,21 @@ def create_country():
     db.session.commit()
 
     return 'Country created successfully', 201
+
+
+@app.route('/countries/populate', methods=['POST'])
+def populate_countries():
+    data = pd.read_csv('output1.csv')  # Замініть 'countries.csv' на шлях до вашого CSV-файлу
+    countries = []
+
+    for index, row in data.iterrows():
+        country = Country(name=row['Country'])
+        countries.append(country)
+
+    db.session.add_all(countries)
+    db.session.commit()
+
+    return 'Countries populated successfully', 201
 
 
 # Отримання всіх країн
@@ -228,7 +275,7 @@ def create_city():
 
 @app.route('/cities/populate', methods=['POST'])
 def populate_cities():
-    data = pd.read_csv('output.csv')  # Замініть 'cities.csv' на шлях до вашого CSV-файлу
+    data = pd.read_csv('output1.csv')  # Замініть 'cities.csv' на шлях до вашого CSV-файлу
     cities = []
 
     for index, row in data.iterrows():
@@ -370,17 +417,39 @@ def delete_owner(id):
 # Create a new Rental Property
 @app.route('/rental_properties', methods=['POST'])
 def create_rental_property():
-    data = request.json
+    data = request.get_json()
+
+    if 'City_ID' not in data or 'Country_ID' not in data or 'Owner_ID' not in data:
+        abort(400, 'Missing required fields')
+
+    City_ID = data['City_ID']
+    Country_ID = data['Country_ID']
+    Owner_ID = data['Owner_ID']
+
+    if not City_ID or not isinstance(City_ID, int):
+        abort(400, 'Invalid City ID')
+
+    if not Country_ID or not isinstance(Country_ID, int):
+        abort(400, 'Invalid Country ID')
+
+    if not Owner_ID or not isinstance(Owner_ID, int):
+        abort(400, 'Invalid Owner ID')
+
+    # Перевірка існування власника з вказаним Owner_ID
+    owner = Owner.query.get(Owner_ID)
+    if not owner:
+        abort(404, 'Owner not found')
+
     new_rental_property = RentalProperty(
         Name=data['Name'],
         Description=data['Description'],
         Address=data['Address'],
-        City_ID=data['City_ID'],
-        Country_ID=data['Country_ID'],
+        City_ID=City_ID,
+        Country_ID=Country_ID,
         Price=data['Price'],
         Available_From=data['Available_From'],
         Available_To=data['Available_To'],
-        Owner_ID=data['Owner_ID'],
+        Owner_ID=Owner_ID,
         Lat=data['Lat'],
         Lng=data['Lng'],
         Kitchen=data['Kitchen'],
@@ -395,6 +464,7 @@ def create_rental_property():
     )
     db.session.add(new_rental_property)
     db.session.commit()
+
     return jsonify({'message': 'Rental Property created successfully', 'ID': new_rental_property.ID}), 201
 
 
@@ -416,7 +486,16 @@ def get_all_rental_properties():
             'Available_To': rental_property.Available_To,
             'Owner_ID': rental_property.Owner_ID,
             'Lat': rental_property.Lat,
-            'Lng': rental_property.Lng
+            'Lng': rental_property.Lng,
+            'Kitchen': rental_property.Kitchen,
+            'Breakfast': rental_property.Breakfast,
+            'Breakfast_Lunch': rental_property.Breakfast_Lunch,
+            'Breakfast_Dinner': rental_property.Breakfast_Dinner,
+            'All_in': rental_property.All_in,
+            'Bath': rental_property.Bath,
+            'Balconies': rental_property.Balconies,
+            'Wi_Fi': rental_property.Wi_Fi,
+            'Parking': rental_property.Parking
         }
         result.append(rental_property_data)
     return jsonify({'rental_properties': result}), 200
@@ -439,7 +518,16 @@ def get_rental_property(id):
             'Available_To': rental_property.Available_To,
             'Owner_ID': rental_property.Owner_ID,
             'Lat': rental_property.Lat,
-            'Lng': rental_property.Lng
+            'Lng': rental_property.Lng,
+            'Kitchen': rental_property.Kitchen,
+            'Breakfast': rental_property.Breakfast,
+            'Breakfast_Lunch': rental_property.Breakfast_Lunch,
+            'Breakfast_Dinner': rental_property.Breakfast_Dinner,
+            'All_in': rental_property.All_in,
+            'Bath': rental_property.Bath,
+            'Balconies': rental_property.Balconies,
+            'Wi_Fi': rental_property.Wi_Fi,
+            'Parking': rental_property.Parking
         }
         return jsonify({'rental_property': rental_property_data}), 200
     else:
@@ -463,6 +551,15 @@ def update_rental_property(id):
         rental_property.Owner_ID = data['Owner_ID']
         rental_property.Lat = data['Lat']
         rental_property.Lng = data['Lng']
+        rental_property.Kitchen = data['Kitchen']
+        rental_property.Breakfast = data['Breakfast']
+        rental_property.Breakfast_Lunch = data['Breakfast_Lunch']
+        rental_property.Breakfast_Dinner = data['Breakfast_Dinner']
+        rental_property.All_in = data['All_in']
+        rental_property.Bath = data['Bath']
+        rental_property.Balconies = data['Balconies']
+        rental_property.Wi_Fi = data['Wi_Fi']
+        rental_property.Parking = data['Parking']
         db.session.commit()
         return jsonify({'message': 'Rental Property updated successfully'}), 200
     else:
@@ -480,22 +577,61 @@ def delete_rental_property(id):
     else:
         return jsonify({'message': 'Rental Property not found'}), 404
 
+@app.route('/login', methods=['POST'])
+def login():
+    email = request.form.get('email')
+    password = request.form.get('password')
+
+    user = User.query.filter_by(Email=email).first()
+    if user:
+        if password == user.Password:
+            # Generate JWT token
+            expiration_time = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+            token = jwt.encode({
+                'user_id': user.ID,
+                'exp': expiration_time.isoformat()  # Token expiration time as string
+            }, app.secret_key, algorithm='HS256')
+            return jsonify({'message': 'Login successful', 'token': token}), 201
+        else:
+            print('Invalid email or password. Please try again.', 'error')
+            return jsonify({'message': 'Invalid email or password'}), 401
+    else:
+        print('No user found with that email. Please sign up.', 'error')
+        return jsonify({'message': 'User not found'}), 404
+
+
 
 # Create a new User
 @app.route('/users', methods=['POST'])
 def create_user():
     data = request.json
+
+    if 'rental_property_id' not in data:
+        abort(400, 'Missing rental_property_id')
+
+    rental_property_id = data['rental_property_id']
+
+    if not rental_property_id or not isinstance(rental_property_id, int):
+        abort(400, 'Invalid rental_property_id')
+
+    # Перевірка існування орендної власності з вказаним rental_property_id
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        abort(404, 'Rental Property not found')
+
     new_user = User(
         First_Name=data['First_Name'],
         Last_Name=data['Last_Name'],
         Email=data['Email'],
         Password=data['Password'],
         Country=data['Country'],
-        rental_property_id=data['rental_property_id']
+        rental_property_id=rental_property_id
     )
     db.session.add(new_user)
     db.session.commit()
+
     return jsonify({'message': 'User created successfully', 'ID': new_user.ID}), 201
+
 
 
 # Get all Users
@@ -609,7 +745,17 @@ def add_review():
     rating = data.get('rating')
     comment = data.get('comment')
 
-    new_review = Review(user_id=user_id, rental_property_id=rental_property_id, rating=rating, comment=comment)
+    # Перевірка наявності валідного rental_property_id
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if rental_property is None:
+        return jsonify({'error': 'Invalid rental_property_id'})
+
+    # Перевірка наявності валідного user_id
+    user = User.query.get(user_id)
+    if user is None:
+        return jsonify({'error': 'Invalid user_id'})
+
+    new_review = Review(User_ID=user_id, Rent_Prop_ID=rental_property_id, Rating=rating, Comment=comment)
     db.session.add(new_review)
     db.session.commit()
 
@@ -644,7 +790,6 @@ def delete_review(review_id):
         return jsonify({'error': 'Review not found'}), 404
 
 
-# Маршрут для створення бронювання
 @app.route('/bookings', methods=['POST'])
 def create_booking():
     data = request.json
@@ -654,6 +799,19 @@ def create_booking():
     check_out_date = data['check_out_date']
     price = data['price']
 
+    # Check if rental_property_id and user_id are provided and valid
+    if not rental_property_id or not isinstance(rental_property_id, int):
+        return jsonify({'error': 'Invalid rental_property_id'})
+
+    if not user_id or not isinstance(user_id, int):
+        return jsonify({'error': 'Invalid user_id'})
+
+    # Check if rental_property_id and user_id exist in the database
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        return jsonify({'error': 'Rental Property not found'})
+
+    # Create a new booking
     booking = Booking(user_id=user_id, rental_property_id=rental_property_id, check_in_date=check_in_date,
                       check_out_date=check_out_date, price=price)
     db.session.add(booking)
@@ -734,12 +892,33 @@ def delete_booking(booking_id):
 @app.route('/payments', methods=['POST'])
 def create_payment():
     data = request.json
+    rental_property_id = data.get('rental_property_id')
+    booking_id = data.get('booking_id')
+    user_id = data.get('user_id')
+    payment_date = data.get('payment_date')
+    amount = data.get('amount')
+
+    # Validate rental_property_id
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        return jsonify({'error': 'Invalid rental_property_id'})
+
+    # Validate booking_id
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({'error': 'Invalid booking_id'})
+
+    # Validate user_id
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'Invalid user_id'})
+
     new_payment = Payment(
-        user_id=data['user_id'],
-        rental_property_id=data['rental_property_id'],
-        booking_id=data['booking_id'],
-        payment_date=data['payment_date'],
-        amount=data['amount']
+        user_id=user_id,
+        rental_property_id=rental_property_id,
+        booking_id=booking_id,
+        payment_date=payment_date,
+        amount=amount
     )
     db.session.add(new_payment)
     db.session.commit()
@@ -820,9 +999,16 @@ def delete_payment(payment_id):
 def create_image():
     rental_property_id = request.form['rental_property_id']
     image_path = request.form['image_path']
+
+    # Validate rental_property_id
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        return jsonify({'error': 'Invalid rental_property_id'})
+
     image = Image(rental_property_id=rental_property_id, image_path=image_path)
     db.session.add(image)
     db.session.commit()
+
     return jsonify({'message': 'Image created successfully!'})
 
 
