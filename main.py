@@ -159,7 +159,6 @@ class User(db.Model):
     Email = db.Column(db.String(100), unique=True, nullable=False)
     Password = db.Column(db.String(100), nullable=False)
     Country = db.Column(db.String(50), nullable=False)
-    rental_property_id = db.Column(db.Integer, db.ForeignKey('Rental_Property.ID'), nullable=False)
 
     def __repr__(self):
         return f'<User {self.Email}>'
@@ -665,26 +664,12 @@ def home():
 def create_user():
     data = request.json
 
-    if 'rental_property_id' not in data:
-        abort(400, 'Missing rental_property_id')
-
-    rental_property_id = data['rental_property_id']
-
-    if not rental_property_id or not isinstance(rental_property_id, int):
-        abort(400, 'Invalid rental_property_id')
-
-    # Перевірка існування орендної власності з вказаним rental_property_id
-    rental_property = RentalProperty.query.get(rental_property_id)
-    if not rental_property:
-        abort(404, 'Rental Property not found')
-
     new_user = User(
         First_Name=data['First_Name'],
         Last_Name=data['Last_Name'],
         Email=data['Email'],
         Password=data['Password'],
         Country=data['Country'],
-        rental_property_id=rental_property_id
     )
     db.session.add(new_user)
     db.session.commit()
@@ -705,7 +690,6 @@ def get_users():
             'Email': user.Email,
             'Password': user.Password,
             'Country': user.Country,
-            'rental_property_id': user.rental_property_id
         }
         users_data.append(user_data)
     return jsonify({'users': users_data}), 200
@@ -723,7 +707,6 @@ def get_user(id):
             'Email': user.Email,
             'Password': user.Password,
             'Country': user.Country,
-            'rental_property_id': user.rental_property_id
         }
         return jsonify({'user': user_data}), 200
     else:
@@ -741,7 +724,6 @@ def update_user(id):
         user.Email = data['Email']
         user.Password = data['Password']
         user.Country = data['Country']
-        user.rental_property_id = data['rental_property_id']
         db.session.commit()
         return jsonify({'message': 'User updated successfully'}), 200
     else:
