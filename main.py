@@ -615,48 +615,8 @@ def login():
         print('No user found with that email. Please sign up.', 'error')
         return jsonify({'message': 'User not found'}), 404
 
-    # Generate and store OTP secret key
-    otp_secret = pyotp.random_base32()
-    session['otp_secret'] = otp_secret
-
-    # Send OTP secret key to user's email
-    send_otp_email(email, otp_secret)
-
-    # Redirect to OTP verification page
-    return redirect(url_for('verify_otp'))
 
 
-def send_otp_email(email, otp_secret):
-    msg = Message('Two-Factor Authentication - OTP Secret Key', recipients=[email])
-    msg.body = f'Your OTP secret key is: {otp_secret}.'
-    mail.send(msg)
-
-
-@app.route('/verify_otp', methods=['GET', 'POST'])
-def verify_otp(pyotp=None):
-    if 'otp_secret' not in session:
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        otp_code = request.form.get('otp_code')
-        otp_secret = session['otp_secret']
-
-        # Verify OTP code
-        totp = pyotp.TOTP(otp_secret)
-        if totp.verify(otp_code):
-            # OTP code is valid
-            session.pop('otp_secret')  # Remove OTP secret key from session
-            return jsonify({'message': 'Login successful'}), 201
-        else:
-            # OTP code is invalid
-            return jsonify({'message': 'Invalid code OTPd'}), 401
-
-    return jsonify({'message': 'User not found'}), 404
-
-
-@app.route('/home')
-def home():
-    return 'Welcome to the home page!'
 
 
 # Create a new User
