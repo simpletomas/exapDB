@@ -1,7 +1,6 @@
 import datetime
 import secrets
-import pyotp as pyotp
-from flask import Flask, request, jsonify, abort, session, redirect, url_for
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import pandas as pd
@@ -37,7 +36,7 @@ class City(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
-    country_id = db.Column(db.Integer, db.ForeignKey('country.id'), nullable=False)
+    country_id = db.Column(db.Integer, db.ForeignKey('Country.id'), nullable=False)
 
 
 class Owner(db.Model):
@@ -59,50 +58,71 @@ class RentalProperty(db.Model):
     __tablename__ = 'Rental_Property'
 
     ID = db.Column(db.Integer, primary_key=True)
-    Name = db.Column(db.String(255), nullable=False)
-    Description = db.Column(db.String(255))
-    Address = db.Column(db.String(255), nullable=False)
-    City_ID = db.Column(db.Integer, db.ForeignKey('City.id'), nullable=False)
-    Country_ID = db.Column(db.Integer, db.ForeignKey('Country.id'), nullable=False)
-    Price = db.Column(db.Float, nullable=False)
-    Available_From = db.Column(db.String(255), nullable=False)
-    Available_To = db.Column(db.String(255), nullable=False)
-    Owner_ID = db.Column(db.Integer, db.ForeignKey('Owner.id'), nullable=False)
-    Lat = db.Column(db.String(255), nullable=False)
-    Lng = db.Column(db.String(255), nullable=False)
-    Kitchen = db.Column(db.Boolean, nullable=False)
-    Breakfast = db.Column(db.Boolean, nullable=False)
-    Breakfast_Lunch = db.Column(db.Boolean, nullable=False)
-    Breakfast_Dinner = db.Column(db.Boolean, nullable=False)
-    All_in = db.Column(db.Boolean, nullable=False)
-    Bath = db.Column(db.Boolean, nullable=False)
-    Balconies = db.Column(db.Boolean, nullable=False)
-    Wi_Fi = db.Column(db.Boolean, nullable=False)
-    Parking = db.Column(db.Boolean, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(255))
+    address = db.Column(db.String(255), nullable=False)
+    city = db.Column(db.String(255))
+    country = db.Column(db.String(255))
+    price = db.Column(db.Float, nullable=False)
+    available_from = db.Column(db.String(255))
+    available_to = db.Column(db.String(255))
+    owner_id = db.Column(db.Integer)
+    room_prop_id = db.Column(db.Integer, db.ForeignKey('rental_prop_room_prop.id'))
+    food_prop_id = db.Column(db.Integer, db.ForeignKey('sub_rental_prop_eat.id'))
 
-    def __init__(self, Name, Description, Address, City_ID, Country_ID, Price, Available_From, Available_To, Owner_ID,
-                 Lat, Lng, Kitchen, Breakfast, Breakfast_Lunch, Breakfast_Dinner, All_in, Bath, Balconies, Wi_Fi,
-                 Parking):
-        self.Name = Name
-        self.Description = Description
-        self.Address = Address
-        self.City_ID = City_ID
-        self.Country_ID = Country_ID
-        self.Price = Price
-        self.Available_From = Available_From
-        self.Available_To = Available_To
-        self.Owner_ID = Owner_ID
-        self.Lat = Lat
-        self.Lng = Lng
-        self.Kitchen = Kitchen
-        self.Breakfast = Breakfast
-        self.Breakfast_Lunch = Breakfast_Lunch
-        self.Breakfast_Dinner = Breakfast_Dinner
-        self.All_in = All_in
-        self.Bath = Bath
-        self.Balconies = Balconies
-        self.Wi_Fi = Wi_Fi
-        self.Parking = Parking
+    def __init__(self, name, description, address, city, country, price, available_from, available_to, owner_id,
+                 room_prop_id, food_prop_id):
+        self.name = name
+        self.description = description
+        self.address = address
+        self.city = city
+        self.country = country
+        self.price = price
+        self.available_from = available_from
+        self.available_to = available_to
+        self.owner_id = owner_id
+        self.room_prop_id = room_prop_id
+        self.food_prop_id = food_prop_id
+
+
+class RentalPropRoomProp(db.Model):
+    __tablename__ = 'rental_prop_room_prop'
+
+    id = db.Column(db.Integer, primary_key=True)
+    bath = db.Column(db.Boolean)
+    balconies = db.Column(db.Boolean)
+    wi_fi = db.Column(db.Boolean)
+    parking = db.Column(db.Boolean)
+    is_pets = db.Column(db.Boolean)
+    is_tv = db.Column(db.Boolean)
+    card_cash = db.Column(db.Boolean)
+
+    def __init__(self, bath, balconies, wi_fi, parking, is_pets, is_tv, card_cash):
+        self.bath = bath
+        self.balconies = balconies
+        self.wi_fi = wi_fi
+        self.parking = parking
+        self.is_pets = is_pets
+        self.is_tv = is_tv
+        self.card_cash = card_cash
+
+
+class SubRentalPropEat(db.Model):
+    __tablename__ = 'sub_rental_prop_eat'
+
+    id = db.Column(db.Integer, primary_key=True)
+    all_in = db.Column(db.Boolean)
+    kitchen = db.Column(db.Boolean)
+    breakfast = db.Column(db.Boolean)
+    lunch = db.Column(db.Boolean)
+    dinner = db.Column(db.Boolean)
+
+    def __init__(self, all_in, kitchen, breakfast, lunch, dinner):
+        self.all_in = all_in
+        self.kitchen = kitchen
+        self.breakfast = breakfast
+        self.lunch = lunch
+        self.dinner = dinner
 
 
 # Модель Review
@@ -199,6 +219,7 @@ class Image(db.Model):
 def index():
     return "Hello, User!"
 
+
 @app.route('/')
 def index1():
     return "Hello, User!"
@@ -288,7 +309,7 @@ def create_city():
 
 @app.route('/cities/populate', methods=['POST'])
 def populate_cities():
-    data = pd.read_csv('output1.csv')  # Замініть 'cities.csv' на шлях до вашого CSV-файлу
+    data = pd.read_csv('output.csv')  # Замініть 'cities.csv' на шлях до вашого CSV-файлу
     cities = []
 
     for index, row in data.iterrows():
@@ -427,168 +448,312 @@ def delete_owner(id):
     return jsonify({'message': 'Owner deleted successfully'})
 
 
-# Create a new Rental Property
-@app.route('/rental_properties', methods=['POST'])
+# Декоратор для маршруту POST
+@app.route('/rental_property', methods=['POST'])
 def create_rental_property():
     data = request.get_json()
+    name = data.get('name')
+    description = data.get('description')
+    address = data.get('address')
+    city = data.get('city')
+    country = data.get('country')
+    price = data.get('price')
+    available_from = data.get('available_from')
+    available_to = data.get('available_to')
+    owner_id = data.get('owner_id')
+    room_prop_id = data.get('room_prop_id')
+    food_prop_id = data.get('food_prop_id')
 
-    if 'City_ID' not in data or 'Country_ID' not in data or 'Owner_ID' not in data:
-        abort(400, 'Missing required fields')
-
-    City_ID = data['City_ID']
-    Country_ID = data['Country_ID']
-    Owner_ID = data['Owner_ID']
-
-    if not City_ID or not isinstance(City_ID, int):
-        abort(400, 'Invalid City ID')
-
-    if not Country_ID or not isinstance(Country_ID, int):
-        abort(400, 'Invalid Country ID')
-
-    if not Owner_ID or not isinstance(Owner_ID, int):
-        abort(400, 'Invalid Owner ID')
-
-    # Перевірка існування власника з вказаним Owner_ID
-    owner = Owner.query.get(Owner_ID)
-    if not owner:
-        abort(404, 'Owner not found')
-
-    new_rental_property = RentalProperty(
-        Name=data['Name'],
-        Description=data['Description'],
-        Address=data['Address'],
-        City_ID=City_ID,
-        Country_ID=Country_ID,
-        Price=data['Price'],
-        Available_From=data['Available_From'],
-        Available_To=data['Available_To'],
-        Owner_ID=Owner_ID,
-        Lat=data['Lat'],
-        Lng=data['Lng'],
-        Kitchen=data['Kitchen'],
-        Breakfast=data['Breakfast'],
-        Breakfast_Lunch=data['Breakfast_Lunch'],
-        Breakfast_Dinner=data['Breakfast_Dinner'],
-        All_in=data['All_in'],
-        Bath=data['Bath'],
-        Balconies=data['Balconies'],
-        Wi_Fi=data['Wi_Fi'],
-        Parking=data['Parking']
-    )
-    db.session.add(new_rental_property)
+    rental_property = RentalProperty(name, description, address, city, country, price, available_from, available_to,
+                                     owner_id, room_prop_id, food_prop_id)
+    db.session.add(rental_property)
     db.session.commit()
 
-    return jsonify({'message': 'Rental Property created successfully', 'ID': new_rental_property.ID}), 201
+    return jsonify({'message': 'Rental property created successfully'}), 201
 
 
-# Get all Rental Properties
-@app.route('/rental_properties', methods=['GET'])
+# Декоратор для маршруту GET з id
+@app.route('/rental_property/<int:rental_property_id>', methods=['GET'])
+def get_rental_property(rental_property_id):
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        return jsonify({'message': 'Rental property not found'}), 404
+
+    rental_property_data = {
+        'ID': rental_property.ID,
+        'name': rental_property.name,
+        'description': rental_property.description,
+        'address': rental_property.address,
+        'city': rental_property.city,
+        'country': rental_property.country,
+        'price': rental_property.price,
+        'available_from': rental_property.available_from,
+        'available_to': rental_property.available_to,
+        'owner_id': rental_property.owner_id,
+        'room_prop_id': rental_property.room_prop_id,
+        'food_prop_id': rental_property.food_prop_id
+    }
+
+    return jsonify(rental_property_data), 200
+
+
+# Декоратор для маршруту GET
+@app.route('/rental_property', methods=['GET'])
 def get_all_rental_properties():
     rental_properties = RentalProperty.query.all()
-    result = []
+
+    rental_properties_data = []
     for rental_property in rental_properties:
         rental_property_data = {
             'ID': rental_property.ID,
-            'Name': rental_property.Name,
-            'Description': rental_property.Description,
-            'Address': rental_property.Address,
-            'City_ID': rental_property.City_ID,
-            'Country_ID': rental_property.Country_ID,
-            'Price': rental_property.Price,
-            'Available_From': rental_property.Available_From,
-            'Available_To': rental_property.Available_To,
-            'Owner_ID': rental_property.Owner_ID,
-            'Lat': rental_property.Lat,
-            'Lng': rental_property.Lng,
-            'Kitchen': rental_property.Kitchen,
-            'Breakfast': rental_property.Breakfast,
-            'Breakfast_Lunch': rental_property.Breakfast_Lunch,
-            'Breakfast_Dinner': rental_property.Breakfast_Dinner,
-            'All_in': rental_property.All_in,
-            'Bath': rental_property.Bath,
-            'Balconies': rental_property.Balconies,
-            'Wi_Fi': rental_property.Wi_Fi,
-            'Parking': rental_property.Parking
+            'name': rental_property.name,
+            'description': rental_property.description,
+            'address': rental_property.address,
+            'city': rental_property.city,
+            'country': rental_property.country,
+            'price': rental_property.price,
+            'available_from': rental_property.available_from,
+            'available_to': rental_property.available_to,
+            'owner_id': rental_property.owner_id,
+            'room_prop_id': rental_property.room_prop_id,
+            'food_prop_id': rental_property.food_prop_id
         }
-        result.append(rental_property_data)
-    return jsonify({'rental_properties': result}), 200
+        rental_properties_data.append(rental_property_data)
+
+    return jsonify(rental_properties_data), 200
 
 
-# Get a specific Rental Property by ID
-@app.route('/rental_properties/<int:id>', methods=['GET'])
-def get_rental_property(id):
-    rental_property = RentalProperty.query.get(id)
-    if rental_property:
-        rental_property_data = {
-            'ID': rental_property.ID,
-            'Name': rental_property.Name,
-            'Description': rental_property.Description,
-            'Address': rental_property.Address,
-            'City_ID': rental_property.City_ID,
-            'Country_ID': rental_property.Country_ID,
-            'Price': rental_property.Price,
-            'Available_From': rental_property.Available_From,
-            'Available_To': rental_property.Available_To,
-            'Owner_ID': rental_property.Owner_ID,
-            'Lat': rental_property.Lat,
-            'Lng': rental_property.Lng,
-            'Kitchen': rental_property.Kitchen,
-            'Breakfast': rental_property.Breakfast,
-            'Breakfast_Lunch': rental_property.Breakfast_Lunch,
-            'Breakfast_Dinner': rental_property.Breakfast_Dinner,
-            'All_in': rental_property.All_in,
-            'Bath': rental_property.Bath,
-            'Balconies': rental_property.Balconies,
-            'Wi_Fi': rental_property.Wi_Fi,
-            'Parking': rental_property.Parking
-        }
-        return jsonify({'rental_property': rental_property_data}), 200
-    else:
-        return jsonify({'message': 'Rental Property not found'}), 404
+# Декоратор для маршруту PUT з id
+@app.route('/rental_property/<int:rental_property_id>', methods=['PUT'])
+def update_rental_property(rental_property_id):
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        return jsonify({'message': 'Rental property not found'}), 404
+
+    data = request.get_json()
+    rental_property.name = data.get('name', rental_property.name)
+    rental_property.description = data.get('description', rental_property.description)
+    rental_property.address = data.get('address', rental_property.address)
+    rental_property.city = data.get('city', rental_property.city)
+    rental_property.country = data.get('country', rental_property.country)
+    rental_property.price = data.get('price', rental_property.price)
+    rental_property.available_from = data.get('available_from', rental_property.available_from)
+    rental_property.available_to = data.get('available_to', rental_property.available_to)
+    rental_property.owner_id = data.get('owner_id', rental_property.owner_id)
+    rental_property.room_prop_id = data.get('room_prop_id', rental_property.room_prop_id)
+    rental_property.food_prop_id = data.get('food_prop_id', rental_property.food_prop_id)
+
+    db.session.commit()
+
+    return jsonify({'message': 'Rental property updated successfully'}), 200
 
 
-# Update a specific Rental Property by ID
-@app.route('/rental_properties/<int:id>', methods=['PUT'])
-def update_rental_property(id):
-    rental_property = RentalProperty.query.get(id)
-    if rental_property:
-        data = request.json
-        rental_property.Name = data['Name']
-        rental_property.Description = data['Description']
-        rental_property.Address = data['Address']
-        rental_property.City_ID = data['City_ID']
-        rental_property.Country_ID = data['Country_ID']
-        rental_property.Price = data['Price']
-        rental_property.Available_From = data['Available_From']
-        rental_property.Available_To = data['Available_To']
-        rental_property.Owner_ID = data['Owner_ID']
-        rental_property.Lat = data['Lat']
-        rental_property.Lng = data['Lng']
-        rental_property.Kitchen = data['Kitchen']
-        rental_property.Breakfast = data['Breakfast']
-        rental_property.Breakfast_Lunch = data['Breakfast_Lunch']
-        rental_property.Breakfast_Dinner = data['Breakfast_Dinner']
-        rental_property.All_in = data['All_in']
-        rental_property.Bath = data['Bath']
-        rental_property.Balconies = data['Balconies']
-        rental_property.Wi_Fi = data['Wi_Fi']
-        rental_property.Parking = data['Parking']
-        db.session.commit()
-        return jsonify({'message': 'Rental Property updated successfully'}), 200
-    else:
-        return jsonify({'message': 'Rental Property not found'}), 404
+# Декоратор для маршруту DELETE з id
+@app.route('/rental_property/<int:rental_property_id>', methods=['DELETE'])
+def delete_rental_property(rental_property_id):
+    rental_property = RentalProperty.query.get(rental_property_id)
+    if not rental_property:
+        return jsonify({'message': 'Rental property not found'}), 404
+
+    db.session.delete(rental_property)
+    db.session.commit()
+
+    return jsonify({'message': 'Rental property deleted successfully'}), 200
 
 
-# Delete a specific Rental Property by ID
-@app.route('/rental_properties/<int:id>', methods=['DELETE'])
-def delete_rental_property(id):
-    rental_property = RentalProperty.query.get(id)
-    if rental_property:
-        db.session.delete(rental_property)
-        db.session.commit()
-        return jsonify({'message': 'Rental Property deleted successfully'}), 200
-    else:
-        return jsonify({'message': 'Rental Property not found'}), 404
+@app.route('/rental_prop_room_prop', methods=['POST'])
+def create_rental_prop_room_prop():
+    data = request.get_json()
+
+    bath = data['bath']
+    balconies = data['balconies']
+    wi_fi = data['wi_fi']
+    parking = data['parking']
+    is_pets = data['is_pets']
+    is_tv = data['is_tv']
+    card_cash = data['card_cash']
+
+    room_prop = RentalPropRoomProp(
+        bath=bath,
+        balconies=balconies,
+        wi_fi=wi_fi,
+        parking=parking,
+        is_pets=is_pets,
+        is_tv=is_tv,
+        card_cash=card_cash
+    )
+
+    db.session.add(room_prop)
+    db.session.commit()
+
+    return jsonify({'message': 'Rental property room properties created successfully'}), 201
+
+
+@app.route('/rental_prop_room_prop', methods=['GET'])
+def get_all_rental_prop_room_props():
+    room_props = RentalPropRoomProp.query.all()
+
+    result = []
+    for room_prop in room_props:
+        result.append({
+            'id': room_prop.id,
+            'bath': room_prop.bath,
+            'balconies': room_prop.balconies,
+            'wi_fi': room_prop.wi_fi,
+            'parking': room_prop.parking,
+            'is_pets': room_prop.is_pets,
+            'is_tv': room_prop.is_tv,
+            'card_cash': room_prop.card_cash
+        })
+
+    return jsonify({'room_properties': result}), 200
+
+
+@app.route('/rental_prop_room_prop/<int:room_prop_id>', methods=['GET'])
+def get_rental_prop_room_prop(room_prop_id):
+    room_prop = RentalPropRoomProp.query.get(room_prop_id)
+    if not room_prop:
+        return jsonify({'message': 'Rental property room properties not found'}), 404
+
+    return jsonify({
+        'id': room_prop.id,
+        'bath': room_prop.bath,
+        'balconies': room_prop.balconies,
+        'wi_fi': room_prop.wi_fi,
+        'parking': room_prop.parking,
+        'is_pets': room_prop.is_pets,
+        'is_tv': room_prop.is_tv,
+        'card_cash': room_prop.card_cash
+    }), 200
+
+
+# Декоратор для маршруту DELETE з id
+@app.route('/rental_prop_room_prop/<int:rental_prop_room_prop_id>', methods=['DELETE'])
+def delete_rental_prop_room_prop(rental_prop_room_prop_id):
+    rental_prop_room_prop = RentalPropRoomProp.query.get(rental_prop_room_prop_id)
+    if not rental_prop_room_prop:
+        return jsonify({'message': 'Rental property room property not found'}), 404
+
+    db.session.delete(rental_prop_room_prop)
+    db.session.commit()
+
+    return jsonify({'message': 'Rental property room property deleted successfully'}), 200
+
+
+# Декоратор для маршруту PUT з id
+@app.route('/rental_prop_room_prop/<int:rental_prop_room_prop_id>', methods=['PUT'])
+def update_rental_prop_room_prop(rental_prop_room_prop_id):
+    rental_prop_room_prop = RentalPropRoomProp.query.get(rental_prop_room_prop_id)
+    if not rental_prop_room_prop:
+        return jsonify({'message': 'Rental property room property not found'}), 404
+
+    data = request.get_json()
+
+    rental_prop_room_prop.bath = data.get('bath', rental_prop_room_prop.bath)
+    rental_prop_room_prop.balconies = data.get('balconies', rental_prop_room_prop.balconies)
+    rental_prop_room_prop.wi_fi = data.get('wi_fi', rental_prop_room_prop.wi_fi)
+    rental_prop_room_prop.parking = data.get('parking', rental_prop_room_prop.parking)
+    rental_prop_room_prop.is_pets = data.get('is_pets', rental_prop_room_prop.is_pets)
+    rental_prop_room_prop.is_tv = data.get('is_tv', rental_prop_room_prop.is_tv)
+    rental_prop_room_prop.card_cash = data.get('card_cash', rental_prop_room_prop.card_cash)
+
+    db.session.commit()
+
+    return jsonify({'message': 'Rental property room property updated successfully'}), 200
+
+
+# Декоратор для маршруту POST
+@app.route('/sub_rental_prop_eat', methods=['POST'])
+def create_sub_rental_prop_eat():
+    data = request.get_json()
+
+    all_in = data['all_in']
+    kitchen = data['kitchen']
+    breakfast = data['breakfast']
+    lunch = data['lunch']
+    dinner = data['dinner']
+
+    sub_rental_prop_eat = SubRentalPropEat(
+        all_in=all_in,
+        kitchen=kitchen,
+        breakfast=breakfast,
+        lunch=lunch,
+        dinner=dinner
+    )
+
+    db.session.add(sub_rental_prop_eat)
+    db.session.commit()
+
+    return jsonify({'message': 'Sub rental property eat properties created successfully'}), 201
+
+
+# Декоратор для маршруту GET без id
+@app.route('/sub_rental_prop_eat', methods=['GET'])
+def get_all_sub_rental_prop_eat():
+    sub_rental_prop_eats = SubRentalPropEat.query.all()
+
+    result = []
+    for sub_rental_prop_eat in sub_rental_prop_eats:
+        result.append({
+            'id': sub_rental_prop_eat.id,
+            'all_in': sub_rental_prop_eat.all_in,
+            'kitchen': sub_rental_prop_eat.kitchen,
+            'breakfast': sub_rental_prop_eat.breakfast,
+            'lunch': sub_rental_prop_eat.lunch,
+            'dinner': sub_rental_prop_eat.dinner
+        })
+
+    return jsonify({'sub_rental_prop_eats': result}), 200
+
+
+# Декоратор для маршруту GET з id
+@app.route('/sub_rental_prop_eat/<int:sub_rental_prop_eat_id>', methods=['GET'])
+def get_sub_rental_prop_eat(sub_rental_prop_eat_id):
+    sub_rental_prop_eat = SubRentalPropEat.query.get(sub_rental_prop_eat_id)
+    if not sub_rental_prop_eat:
+        return jsonify({'message': 'Sub rental property eat properties not found'}), 404
+
+    return jsonify({
+        'id': sub_rental_prop_eat.id,
+        'all_in': sub_rental_prop_eat.all_in,
+        'kitchen': sub_rental_prop_eat.kitchen,
+        'breakfast': sub_rental_prop_eat.breakfast,
+        'lunch': sub_rental_prop_eat.lunch,
+        'dinner': sub_rental_prop_eat.dinner
+    }), 200
+
+
+# Декоратор для маршруту DELETE з id
+@app.route('/sub_rental_prop_eat/<int:sub_rental_prop_eat_id>', methods=['DELETE'])
+def delete_sub_rental_prop_eat(sub_rental_prop_eat_id):
+    sub_rental_prop_eat = SubRentalPropEat.query.get(sub_rental_prop_eat_id)
+    if not sub_rental_prop_eat:
+        return jsonify({'message': 'Sub rental property eat not found'}), 404
+
+    db.session.delete(sub_rental_prop_eat)
+    db.session.commit()
+
+    return jsonify({'message': 'Sub rental property eat deleted successfully'}), 200
+
+
+# Декоратор для маршруту PUT з id
+@app.route('/sub_rental_prop_eat/<int:sub_rental_prop_eat_id>', methods=['PUT'])
+def update_sub_rental_prop_eat(sub_rental_prop_eat_id):
+    sub_rental_prop_eat = SubRentalPropEat.query.get(sub_rental_prop_eat_id)
+    if not sub_rental_prop_eat:
+        return jsonify({'message': 'Sub rental property eat not found'}), 404
+
+    data = request.get_json()
+
+    sub_rental_prop_eat.all_in = data.get('all_in', sub_rental_prop_eat.all_in)
+    sub_rental_prop_eat.kitchen = data.get('kitchen', sub_rental_prop_eat.kitchen)
+    sub_rental_prop_eat.breakfast = data.get('breakfast', sub_rental_prop_eat.breakfast)
+    sub_rental_prop_eat.lunch = data.get('lunch', sub_rental_prop_eat.lunch)
+    sub_rental_prop_eat.dinner = data.get('dinner', sub_rental_prop_eat.dinner)
+
+    db.session.commit()
+
+    return jsonify({'message': 'Sub rental property eat updated successfully'}), 200
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -606,17 +771,12 @@ def login():
                 'exp': expiration_time.isoformat()  # Token expiration time as string
             }, app.secret_key, algorithm='HS256')
             return jsonify({'message': 'Login successful', 'token': token}), 201
-
-
         else:
             print('Invalid email or password. Please try again.', 'error')
             return jsonify({'message': 'Invalid email or password'}), 401
     else:
         print('No user found with that email. Please sign up.', 'error')
         return jsonify({'message': 'User not found'}), 404
-
-
-
 
 
 # Create a new User
