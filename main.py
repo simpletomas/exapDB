@@ -1,4 +1,5 @@
 import datetime
+import re
 import secrets
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -6,6 +7,7 @@ from flask_migrate import Migrate
 import pandas as pd
 import jwt
 from flask_mail import Mail, Message
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -64,8 +66,8 @@ class RentalProperty(db.Model):
     city = db.Column(db.String(255))
     country = db.Column(db.String(255))
     price = db.Column(db.Float, nullable=False)
-    available_from = db.Column(db.String(255))
-    available_to = db.Column(db.String(255))
+    available_from = db.Column(db.Date)
+    available_to = db.Column(db.Date)
     owner_id = db.Column(db.Integer)
     room_prop_id = db.Column(db.Integer, db.ForeignKey('rental_prop_room_prop.id'))
     food_prop_id = db.Column(db.Integer, db.ForeignKey('sub_rental_prop_eat.id'))
@@ -371,17 +373,36 @@ def delete_city(city_id):
 @app.route('/owners', methods=['POST'])
 def create_owner():
     with app.app_context():
-        first_name = request.json['first_name']
-        last_name = request.json['last_name']
-        email = request.json['email']
-        password = request.json['password']
-        country = request.json['country']
+        data = request.json
+
+        if not data:
+            return jsonify({'error': 'Invalid data format'}), 400
+
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+        email = data.get('email')
+        password = data.get('password')
+        country = data.get('country')
+
+        if not all([first_name, last_name, email, password, country]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        if len(first_name) > 50 or len(last_name) > 50:
+            return jsonify({'error': 'First name and last name cannot exceed 50 characters'}), 400
+
+        if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        existing_owner = Owner.query.filter_by(email=email).first()
+
+        if existing_owner:
+            return jsonify({'error': 'Owner with the same email already exists'}), 409
 
         new_owner = Owner(first_name=first_name, last_name=last_name, email=email, password=password, country=country)
         db.session.add(new_owner)
         db.session.commit()
 
-        return jsonify({'message': 'Owner created successfully'})
+        return jsonify({'message': 'Owner created successfully'}), 201
 
 
 @app.route('/owners', methods=['GET'])
@@ -448,21 +469,66 @@ def delete_owner(id):
     return jsonify({'message': 'Owner deleted successfully'})
 
 
-# Декоратор для маршруту POST
 @app.route('/rental_property', methods=['POST'])
 def create_rental_property():
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid data format'}), 400
+
     name = data.get('name')
     description = data.get('description')
     address = data.get('address')
     city = data.get('city')
     country = data.get('country')
     price = data.get('price')
-    available_from = data.get('available_from')
-    available_to = data.get('available_to')
+    available_from_str = data.get('available_from')
+    available_to_str = data.get('available_to')
     owner_id = data.get('owner_id')
     room_prop_id = data.get('room_prop_id')
     food_prop_id = data.get('food_prop_id')
+
+    if not all([name, address, city, country, price, available_from_str, available_to_str, owner_id]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    try:
+        available_from = datetime.strptime(available_from_str, '%B %d, %Y')
+        available_to = datetime.strptime(available_to_str, '%B %d, %Y')
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    if price <= 0:
+        return jsonify({'error': 'Price must be greater than zero'}), 400
+
+    if available_from >= available_to:
+        return jsonify({'error': 'Available from date must be before the available to date'}), 400
+
+    if len(name) > 100:
+        return jsonify({'error': 'Name cannot exceed 100 characters'}), 400
+
+    if not isinstance(room_prop_id, int):
+        return jsonify({'error': 'Room property ID must be an integer'}), 400
+
+        # Check if the provided room_prop_id exists
+    room_prop = RentalPropRoomProp.query.get(room_prop_id)
+    if room_prop is None:
+        return jsonify({'error': 'Invalid room property ID'}), 400
+
+    food_prop = SubRentalPropEat.query.get(food_prop_id)
+    if food_prop is None:
+        return jsonify({'error': 'Invalid food property ID'}), 400
+
+    # Additional checks and validations
+
+    if not isinstance(owner_id, int):
+        return jsonify({'error': 'Owner ID must be an integer'}), 400
+
+    if not isinstance(room_prop_id, int):
+        return jsonify({'error': 'Room property ID must be an integer'}), 400
+
+    if not isinstance(food_prop_id, int):
+        return jsonify({'error': 'Food property ID must be an integer'}), 400
+
+    # Add more checks and validations based on your requirements
 
     rental_property = RentalProperty(name, description, address, city, country, price, available_from, available_to,
                                      owner_id, room_prop_id, food_prop_id)
@@ -472,7 +538,6 @@ def create_rental_property():
     return jsonify({'message': 'Rental property created successfully'}), 201
 
 
-# Декоратор для маршруту GET з id
 @app.route('/rental_property/<int:rental_property_id>', methods=['GET'])
 def get_rental_property(rental_property_id):
     rental_property = RentalProperty.query.get(rental_property_id)
@@ -487,14 +552,14 @@ def get_rental_property(rental_property_id):
         'city': rental_property.city,
         'country': rental_property.country,
         'price': rental_property.price,
-        'available_from': rental_property.available_from,
-        'available_to': rental_property.available_to,
+        'available_from': rental_property.available_from.isoformat(),
+        'available_to': rental_property.available_to.isoformat(),
         'owner_id': rental_property.owner_id,
         'room_prop_id': rental_property.room_prop_id,
         'food_prop_id': rental_property.food_prop_id
     }
 
-    return jsonify(rental_property_data), 200
+    return jsonify(rental_property_data), 20
 
 
 # Декоратор для маршруту GET
@@ -662,7 +727,6 @@ def update_rental_prop_room_prop(rental_prop_room_prop_id):
     return jsonify({'message': 'Rental property room property updated successfully'}), 200
 
 
-# Декоратор для маршруту POST
 @app.route('/sub_rental_prop_eat', methods=['POST'])
 def create_sub_rental_prop_eat():
     data = request.get_json()
@@ -672,6 +736,13 @@ def create_sub_rental_prop_eat():
     breakfast = data['breakfast']
     lunch = data['lunch']
     dinner = data['dinner']
+
+    # Count the number of True values
+    true_count = sum([bool(arg) for arg in [all_in, kitchen, breakfast, lunch, dinner]])
+
+    # Check if only one argument has a value of True
+    if true_count != 1:
+        return jsonify({'error': 'Exactly one argument must be True'}), 400
 
     sub_rental_prop_eat = SubRentalPropEat(
         all_in=all_in,
@@ -685,6 +756,7 @@ def create_sub_rental_prop_eat():
     db.session.commit()
 
     return jsonify({'message': 'Sub rental property eat properties created successfully'}), 201
+
 
 
 # Декоратор для маршруту GET без id
