@@ -7,7 +7,7 @@ from flask_migrate import Migrate
 import pandas as pd
 import jwt
 from datetime import datetime
-from flask_cors import CORS
+from flask_cors import CORS#new upd
 
 app = Flask(__name__)
 CORS(app)
