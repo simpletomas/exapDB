@@ -6,23 +6,15 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import pandas as pd
 import jwt
-from flask_mail import Mail, Message
 from datetime import datetime
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = secrets.token_hex(16)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///accommodation.db'  # Підключення до бази даних
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)  # Ініціалізація міграцій
-
-# Flask-Mail configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'dhomevibe01@gmail.com'
-app.config['MAIL_PASSWORD'] = '115903Pink'
-
-mail = Mail(app)
 
 
 class Country(db.Model):
@@ -756,7 +748,6 @@ def create_sub_rental_prop_eat():
     db.session.commit()
 
     return jsonify({'message': 'Sub rental property eat properties created successfully'}), 201
-
 
 
 # Декоратор для маршруту GET без id
