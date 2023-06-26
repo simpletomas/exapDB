@@ -818,11 +818,11 @@ def update_sub_rental_prop_eat(sub_rental_prop_eat_id):
 
     return jsonify({'message': 'Sub rental property eat updated successfully'}), 200
 
-
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['POST'])
 def login():
-    email = request.form.get('email')
-    password = request.form.get('password')
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
 
     user = User.query.filter_by(Email=email).first()
     if user:
