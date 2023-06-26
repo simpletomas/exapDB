@@ -6,7 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import pandas as pd
 import jwt
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_cors import CORS#new upd
 
 app = Flask(__name__)
@@ -828,7 +828,7 @@ def login():
     if user:
         if password == user.Password:
             # Generate JWT token
-            expiration_time = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+            expiration_time = datetime.utcnow() + timedelta(days=1)
             token = jwt.encode({
                 'user_id': user.ID,
                 'exp': expiration_time.isoformat()  # Token expiration time as string
